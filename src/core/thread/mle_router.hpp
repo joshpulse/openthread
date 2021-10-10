@@ -426,7 +426,7 @@ public:
      * @param[out]  aTlv  A reference to the tlv to be filled.
      *
      */
-    void FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor = nullptr);
+    void FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor = nullptr, bool routeCostZero = false);
 
     /**
      * This method generates an MLE Child Update Request message to be sent to the parent.
@@ -563,7 +563,7 @@ private:
 
     Error AppendConnectivity(Message &aMessage);
     Error AppendChildAddresses(Message &aMessage, Child &aChild);
-    Error AppendRoute(Message &aMessage, Neighbor *aNeighbor = nullptr);
+    Error AppendRoute(Message &aMessage, Neighbor *aNeighbor = nullptr, bool routeCostZero = false);
     Error AppendActiveDataset(Message &aMessage);
     Error AppendPendingDataset(Message &aMessage);
     void  HandleDetachStart(void);
@@ -604,7 +604,7 @@ private:
     void  SendAddressSolicitResponse(const Coap::Message &   aRequest,
                                      const Router *          aRouter,
                                      const Ip6::MessageInfo &aMessageInfo);
-    void  SendAdvertisement(void);
+    void  SendAdvertisement(bool routeCostZero = false);
     Error SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
                          Neighbor *              aNeighbor,
                          const RequestedTlvs &   aRequestedTlvs,
@@ -686,6 +686,8 @@ private:
     uint32_t mPreviousPartitionId;               ///< The partition ID when last attached
     uint8_t  mPreviousPartitionRouterIdSequence; ///< The router ID sequence when last attached
     uint8_t  mPreviousPartitionIdTimeout;        ///< The partition ID timeout when last attached
+
+    bool mRemoval;
 
     uint8_t mRouterSelectionJitter;        ///< The variable to save the assigned jitter value.
     uint8_t mRouterSelectionJitterTimeout; ///< The Timeout prior to request/release Router ID.

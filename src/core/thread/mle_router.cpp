@@ -79,6 +79,7 @@ MleRouter::MleRouter(Instance &aInstance)
     , mPreviousPartitionId(0)
     , mPreviousPartitionRouterIdSequence(0)
     , mPreviousPartitionIdTimeout(0)
+    , mRemoval(false)
     , mRouterSelectionJitter(kRouterSelectionJitter)
     , mRouterSelectionJitterTimeout(0)
     , mParentPriority(kParentPriorityUnspecified)
@@ -450,7 +451,7 @@ exit:
     return;
 }
 
-void MleRouter::SendAdvertisement(void)
+void MleRouter::SendAdvertisement(bool routeCostZero)
 {
     Error        error = kErrorNone;
     Ip6::Address destination;
@@ -486,7 +487,7 @@ void MleRouter::SendAdvertisement(void)
 
     case kRoleRouter:
     case kRoleLeader:
-        SuccessOrExit(error = AppendRoute(*message));
+        SuccessOrExit(error = AppendRoute(*message, NULL, routeCostZero));
         break;
     }
 
@@ -705,6 +706,8 @@ Error MleRouter::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
     Command              command;
     uint8_t              linkMargin;
 
+ 
+
     command = (aNeighbor == nullptr || aNeighbor->IsStateValid()) ? kCommandLinkAccept : kCommandLinkAcceptAndRequest;
 
     VerifyOrExit((message = NewMleMessage()) != nullptr, error = kErrorNoBufs);
@@ -721,6 +724,10 @@ Error MleRouter::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
 
     SuccessOrExit(error = AppendLinkMargin(*message, linkMargin));
 
+    if (mRemoval == true){
+        SendAdvertisement(true);
+        ExitNow(error = kErrorDrop);
+    }
     if (aNeighbor != nullptr && IsActiveRouter(aNeighbor->GetRloc16()))
     {
         SuccessOrExit(error = AppendLeaderData(*message));
@@ -3386,6 +3393,7 @@ void MleRouter::RemoveRouterLink(Router &aRouter)
 
 void MleRouter::RemoveNeighborC(uint16_t aRloc16)
 {
+    mRemoval = true;
     Neighbor *neighbor;
     neighbor = mNeighborTable.FindNeighbor(aRloc16);
     RemoveNeighbor(*neighbor);
@@ -4121,7 +4129,7 @@ exit:
     return error;
 }
 
-void MleRouter::FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor)
+void MleRouter::FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor, bool routeCostZero)
 {
     uint8_t     routerIdSequence = mRouterTable.GetRouterIdSequence();
     RouterIdSet routerIdSet      = mRouterTable.GetRouterIdSet();
@@ -4210,10 +4218,21 @@ void MleRouter::FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor)
             {
                 routeCost = 0;
             }
+            if (routeCostZero == true)
+            {
+                aTlv.SetRouteCost(routerCount, 0);
+                aTlv.SetLinkQualityOut(routerCount, 10);
+                aTlv.SetLinkQualityIn(routerCount, 10);
+            }
+            else
+            {
+                aTlv.SetRouteCost(routerCount, routeCost);
+                aTlv.SetLinkQualityOut(routerCount, router.GetLinkQualityOut());
+                aTlv.SetLinkQualityIn(routerCount, router.GetLinkInfo().GetLinkQuality());
+            }
+            
 
-            aTlv.SetRouteCost(routerCount, routeCost);
-            aTlv.SetLinkQualityOut(routerCount, router.GetLinkQualityOut());
-            aTlv.SetLinkQualityIn(routerCount, router.GetLinkInfo().GetLinkQuality());
+
         }
 
         routerCount++;
@@ -4222,12 +4241,12 @@ void MleRouter::FillRouteTlv(RouteTlv &aTlv, Neighbor *aNeighbor)
     aTlv.SetRouteDataLength(routerCount);
 }
 
-Error MleRouter::AppendRoute(Message &aMessage, Neighbor *aNeighbor)
+Error MleRouter::AppendRoute(Message &aMessage, Neighbor *aNeighbor, bool routeCostZero)
 {
     RouteTlv tlv;
 
     tlv.Init();
-    FillRouteTlv(tlv, aNeighbor);
+    FillRouteTlv(tlv, aNeighbor, routeCostZero);
 
     return tlv.AppendTo(aMessage);
 }
