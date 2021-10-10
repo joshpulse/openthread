@@ -53,6 +53,8 @@
 #include <openthread/dataset_ftd.h>
 
 #define UDP_PORT 1212
+#define channel 15
+
 
 static const char UDP_DEST_ADDR[] = "ff03::1";
 static const char UDP_PAYLOAD[]   = "Hello OpenThread World!";
@@ -222,7 +224,7 @@ void setNetworkConfiguration(otInstance *aInstance)
     aDataset.mComponents.mIsActiveTimestampPresent = true;
 
     /* Set Channel to 15 */
-    aDataset.mChannel                      = 15;
+    aDataset.mChannel                      = channel;
     aDataset.mComponents.mIsChannelPresent = true;
 
     /* Set Pan ID to 2222 */
@@ -244,6 +246,12 @@ void setNetworkConfiguration(otInstance *aInstance)
     assert(length <= OT_NETWORK_NAME_MAX_SIZE);
     memcpy(aDataset.mNetworkName.m8, aNetworkName, length);
     aDataset.mComponents.mIsNetworkNamePresent = true;
+
+    /* Set Mesh Local Prefix to fd33:3333:3344:0::/64 */
+    static const otIp6Address prefix = {{{0xfd, 0x33, 0x33, 0x33, 0x33, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}}};
+    memcpy(aDataset.mMeshLocalPrefix.m8, prefix.mFields.m8, sizeof(prefix));
+    aDataset.mComponents.mIsMeshLocalPrefixPresent = true;
+
 
     otDatasetSetActive(aInstance, &aDataset);
     /* Set the router selection jitter to override the 2 minute default.
