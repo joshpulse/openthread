@@ -3255,6 +3255,14 @@ void Interpreter::HandlePingStatistics(const otPingSenderStatistics *aStatistics
     }
 }
 
+otError Interpreter::ProcessRemove(Arg aArgs[])
+{
+    OT_UNUSED_VARIABLE(aArgs);
+    otError            error = OT_ERROR_NONE;
+    otThreadRemoveNeighbor(GetInstancePtr(), 0xf800);
+    return error;
+}
+
 otError Interpreter::ProcessPing(Arg aArgs[])
 {
     otError            error = OT_ERROR_NONE;

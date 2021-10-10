@@ -48,6 +48,11 @@ uint32_t otThreadGetChildTimeout(otInstance *aInstance)
     return AsCoreType(aInstance).Get<Mle::MleRouter>().GetTimeout();
 }
 
+void otThreadRemoveNeighbor(otInstance *aInstance, uint16_t aRloc16)
+{
+    AsCoreType(aInstance).Get<Mle::MleRouter>().RemoveNeighborC(aRloc16);
+}
+
 void otThreadSetChildTimeout(otInstance *aInstance, uint32_t aTimeout)
 {
     AsCoreType(aInstance).Get<Mle::MleRouter>().SetTimeout(aTimeout);

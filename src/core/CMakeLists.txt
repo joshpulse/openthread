@@ -228,6 +228,7 @@ set(COMMON_SOURCES
     utils/ping_sender.cpp
     utils/slaac_address.cpp
     utils/srp_client_buffers.cpp
+
 )
 
 set(RADIO_COMMON_SOURCES

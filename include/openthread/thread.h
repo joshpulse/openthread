@@ -311,6 +311,8 @@ uint32_t otThreadGetChildTimeout(otInstance *aInstance);
  */
 void otThreadSetChildTimeout(otInstance *aInstance, uint32_t aTimeout);
 
+void otThreadRemoveNeighbor(otInstance *aInstance, uint16_t aRloc16);
+
 /**
  * Get the IEEE 802.15.4 Extended PAN ID.
  *

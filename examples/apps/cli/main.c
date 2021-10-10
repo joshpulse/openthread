@@ -61,6 +61,9 @@ static const char UDP_PAYLOAD[]   = "Hello OpenThread World!";
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 static void setNetworkConfiguration(otInstance *aInstance);
+static void thread_customCommands_init(void);
+static void remove(uint8_t aArgsLength, char *aArgs[]);
+
 
 /**
  * This function initializes the CLI app.
@@ -385,3 +388,6 @@ void handleUdpReceive(void *aContext, otMessage *aMessage,
     otCliOutputFormat("Received UDP multicast");
     otSysLedToggle(4);
 }
+
+
+
