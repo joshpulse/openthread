@@ -341,6 +341,8 @@ public:
      */
     void RemoveNeighbor(Neighbor &aNeighbor);
 
+    void RemoveNeighborC(uint16_t aRloc16);
+
     /**
      * This method invalidates a direct link to a neighboring router (due to failed link-layer acks).
      *

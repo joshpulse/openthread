@@ -325,6 +325,7 @@ private:
 
     // Process methods only on FTD/MTD
 #if OPENTHREAD_FTD || OPENTHREAD_MTD
+    otError ProcessRemove(Arg aArgs[]);
     otError ProcessCcaThreshold(Arg aArgs[]);
     otError ProcessBufferInfo(Arg aArgs[]);
     otError ProcessChannel(Arg aArgs[]);
@@ -814,6 +815,7 @@ private:
         {"releaserouterid", &Interpreter::ProcessReleaseRouterId},
 #endif
 #endif // OPENTHREAD_FTD || OPENTHREAD_MTD
+        {"remove", &Interpreter::ProcessRemove},
         {"reset", &Interpreter::ProcessReset},
 #if OPENTHREAD_FTD || OPENTHREAD_MTD
         {"rloc16", &Interpreter::ProcessRloc16},

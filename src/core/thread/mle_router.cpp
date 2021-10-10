@@ -52,6 +52,7 @@
 #include "thread/uri_paths.hpp"
 #include "utils/otns.hpp"
 
+
 namespace ot {
 namespace Mle {
 
@@ -97,7 +98,11 @@ MleRouter::MleRouter(Instance &aInstance)
 #if OPENTHREAD_CONFIG_MLE_STEERING_DATA_SET_OOB_ENABLE
     mSteeringData.Clear();
 #endif
+
+
 }
+
+
 
 void MleRouter::HandlePartitionChange(void)
 {
@@ -3377,6 +3382,13 @@ void MleRouter::RemoveRouterLink(Router &aRouter)
     default:
         break;
     }
+}
+
+void MleRouter::RemoveNeighborC(uint16_t aRloc16)
+{
+    Neighbor *neighbor;
+    neighbor = mNeighborTable.FindNeighbor(aRloc16);
+    RemoveNeighbor(*neighbor);
 }
 
 void MleRouter::RemoveNeighbor(Neighbor &aNeighbor)
