@@ -510,6 +510,9 @@ Error MleRouter::SendLinkRequest(Neighbor *aNeighbor)
     Message *            message;
     Ip6::Address         destination;
 
+    if(mRemoval == true){
+        return kErrorRejected;
+    }
     destination.Clear();
 
     VerifyOrExit((message = NewMleMessage()) != nullptr, error = kErrorNoBufs);
@@ -724,10 +727,6 @@ Error MleRouter::SendLinkAccept(const Ip6::MessageInfo &aMessageInfo,
 
     SuccessOrExit(error = AppendLinkMargin(*message, linkMargin));
 
-    if (mRemoval == true){
-        SendAdvertisement(true);
-        ExitNow(error = kErrorDrop);
-    }
     if (aNeighbor != nullptr && IsActiveRouter(aNeighbor->GetRloc16()))
     {
         SuccessOrExit(error = AppendLeaderData(*message));

@@ -44,6 +44,7 @@
 #include <openthread/thread_ftd.h>
 
 #include <string.h>
+#include <stdio.h>
 
 #include <openthread/message.h>
 #include <openthread/udp.h>
@@ -57,12 +58,12 @@
 
 
 static const char UDP_DEST_ADDR[] = "ff03::1";
-static const char UDP_PAYLOAD[]   = "Hello OpenThread World!";
+static const char UDP_PAYLOAD_SHUTDOWN[]   = "shutdown";
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 static void setNetworkConfiguration(otInstance *aInstance);
 static void thread_customCommands_init(void);
-static void remove(uint8_t aArgsLength, char *aArgs[]);
+
 
 
 /**
@@ -323,7 +324,8 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
  */
 void handleButtonInterrupt(otInstance *aInstance)
 {
-    otCliOutputFormat("Sending UDP multicast");
+    otCliOutputFormat("Sending UDP multicast\n\r");
+    otCliOutputFormat("DISCONNECTING FROM NETWORK!\n\r");
     sendUdp(aInstance);
 }
 
@@ -353,9 +355,13 @@ void sendUdp(otInstance *aInstance)
     otMessage *   message;
     otMessageInfo messageInfo;
     otIp6Address  destinationAddr;
+    uint16_t aRloc16;
+    char str[80];
 
     memset(&messageInfo, 0, sizeof(messageInfo));
 
+    aRloc16 = otThreadGetRloc16(aInstance);
+    sprintf(str, "%s-0x%x", UDP_PAYLOAD_SHUTDOWN, aRloc16);
     otIp6AddressFromString(UDP_DEST_ADDR, &destinationAddr);
     messageInfo.mPeerAddr    = destinationAddr;
     messageInfo.mPeerPort    = UDP_PORT;
@@ -363,11 +369,14 @@ void sendUdp(otInstance *aInstance)
     message = otUdpNewMessage(aInstance, NULL);
     otEXPECT_ACTION(message != NULL, error = OT_ERROR_NO_BUFS);
 
-    error = otMessageAppend(message, UDP_PAYLOAD, sizeof(UDP_PAYLOAD));
+    error = otMessageAppend(message, str, sizeof(str));
     otEXPECT(error == OT_ERROR_NONE);
 
     error = otUdpSend(aInstance, &sUdpSocket, message, &messageInfo);
 
+    otSysLedSet(1, true);
+    otSysLedSet(2, true);
+    otSysLedSet(3, true);
  exit:
     if (error != OT_ERROR_NONE && message != NULL)
     {
@@ -381,12 +390,27 @@ void sendUdp(otInstance *aInstance)
 void handleUdpReceive(void *aContext, otMessage *aMessage,
                       const otMessageInfo *aMessageInfo)
 {
-    OT_UNUSED_VARIABLE(aContext);
-    OT_UNUSED_VARIABLE(aMessage);
-    OT_UNUSED_VARIABLE(aMessageInfo);
 
-    otCliOutputFormat("Received UDP multicast");
-    otSysLedToggle(4);
+    char str[80];
+    int  length;
+    char * token;
+    char * shutdownCommand = "shutdown\0";
+    const char delimiter[2] = "-";
+    uint16_t address;
+
+    otCliOutputFormat("Received UDP multicast\n\r");
+    length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
+    str[length] = '\0';
+    /* get command */
+    token = strtok(str, delimiter);
+
+    if(strcmp(token,shutdownCommand) == 0){
+        /* get address */
+        token = strtok(NULL, delimiter);
+        address = strtol(token,NULL,16);
+        otCliOutputFormat("Removing %x\n\r", address);
+        otThreadRemoveNeighbor(aContext, address);
+    }
 }
 
 
