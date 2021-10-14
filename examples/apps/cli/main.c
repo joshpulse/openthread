@@ -65,7 +65,6 @@
 #define UDP_PORT 1212
 #define channel 15
 
-
 static const char UDP_DEST_ADDR[] = "ff03::1";
 static const char UDP_PAYLOAD_SHUTDOWN[]   = "shutdown";
 
@@ -144,15 +143,12 @@ static void ProcessExit(void *aContext, uint8_t aArgsLength, char *aArgs[])
 
 #endif
 
-
 /***************************************************************************************************
  * @section Main
  **************************************************************************************************/
 
 int main(int argc, char *argv[])
 {
-
-    
     otInstance *instance;
 
 #if OPENTHREAD_EXAMPLES_SIMULATION
@@ -235,16 +231,12 @@ pseudo_reset:
     return 0;
 }
 
-
-
-
 /***************************************************************************************************
  * @section Helpers
  **************************************************************************************************/
 
-
 /**
- * Send a UDP datagram
+ * @brief Send a UDP datagram
  */
 void sendUdp(otInstance *aInstance)
 {
@@ -286,7 +278,7 @@ void sendUdp(otInstance *aInstance)
  **************************************************************************************************/
 
 /**
- * Function to handle button push event
+ * @brief Function to handle button push event
  */
 void handleButtonInterrupt(otInstance *aInstance)
 {
@@ -296,10 +288,9 @@ void handleButtonInterrupt(otInstance *aInstance)
 }
 
 /**
- * Function to handle UDP datagrams received on the listening socket
+ * @brief Function to handle UDP datagrams received on the listening socket
  */
-void handleUdpReceive(void *aContext, otMessage *aMessage,
-                      const otMessageInfo *aMessageInfo)
+void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
 
     char str[80];
@@ -324,6 +315,9 @@ void handleUdpReceive(void *aContext, otMessage *aMessage,
     }
 }
 
+/**
+ * @brief handler for network state changes
+ */
 void handleNetifStateChanged(uint32_t aFlags, void *aContext)
 {
    if ((aFlags & OT_CHANGED_THREAD_ROLE) != 0)
@@ -363,9 +357,8 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
  * @section Initialization
  **************************************************************************************************/
 
-
 /**
- * Initialize UDP socket
+ * @brief Initialize UDP socket
  */
 void initUdp(otInstance *aInstance)
 {
@@ -382,8 +375,7 @@ void initUdp(otInstance *aInstance)
 }
 
 /**
- * Override default network settings, such as panid, so the devices can join a
- network
+ * @brief Override default network settings, such as panid, so the devices can join a network
  */
 void initNetworkConfiguration(otInstance *aInstance)
 {
