@@ -26,6 +26,10 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+/***************************************************************************************************
+ * @section Includes
+ **************************************************************************************************/
+
 #include <assert.h>
 #include <openthread-core-config.h>
 #include <openthread/config.h>
@@ -53,6 +57,11 @@
 
 #include <openthread/dataset_ftd.h>
 
+
+/***************************************************************************************************
+ * @section Declarations
+ **************************************************************************************************/
+
 #define UDP_PORT 1212
 #define channel 15
 
@@ -61,18 +70,37 @@ static const char UDP_DEST_ADDR[] = "ff03::1";
 static const char UDP_PAYLOAD_SHUTDOWN[]   = "shutdown";
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
-static void setNetworkConfiguration(otInstance *aInstance);
+static void initNetworkConfiguration(otInstance *aInstance);
 static void thread_customCommands_init(void);
-
-
-
-/**
- * This function initializes the CLI app.
- *
- * @param[in]  aInstance  The OpenThread instance structure.
- *
- */
+static void initUdp(otInstance *aInstance);
+static void sendUdp(otInstance *aInstance);
+static void handleButtonInterrupt(otInstance *aInstance);
+void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
+static otUdpSocket sUdpSocket;
 extern void otAppCliInit(otInstance *aInstance);
+
+/***************************************************************************************************
+ * @section misc
+ **************************************************************************************************/
+
+/*
+ * Provide, if required an "otPlatLog()" function
+ */
+#if OPENTHREAD_CONFIG_LOG_OUTPUT == OPENTHREAD_CONFIG_LOG_OUTPUT_APP
+void otPlatLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat, ...)
+{
+    va_list ap;
+    va_start(ap, aFormat);
+    otCliPlatLogv(aLogLevel, aLogRegion, aFormat, ap);
+    va_end(ap);
+}
+
+void otPlatLogLine(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aLogLine)
+{
+    otCliPlatLogLine(aLogLevel, aLogRegion, aLogLine);
+}
+
+#endif
 
 #if OPENTHREAD_EXAMPLES_SIMULATION
 #include <setjmp.h>
@@ -104,16 +132,6 @@ void otTaskletsSignalPending(otInstance *aInstance)
     OT_UNUSED_VARIABLE(aInstance);
 }
 
-static void initUdp(otInstance *aInstance);
-static void sendUdp(otInstance *aInstance);
-
-static void handleButtonInterrupt(otInstance *aInstance);
-
-void handleUdpReceive(void *aContext, otMessage *aMessage, 
-                      const otMessageInfo *aMessageInfo);
-
-static otUdpSocket sUdpSocket;
-
 #if OPENTHREAD_POSIX && !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
 static void ProcessExit(void *aContext, uint8_t aArgsLength, char *aArgs[])
 {
@@ -123,8 +141,13 @@ static void ProcessExit(void *aContext, uint8_t aArgsLength, char *aArgs[])
 
     exit(EXIT_SUCCESS);
 }
-static const otCliCommand kCommands[] = {{"exit", ProcessExit}};
+
 #endif
+
+
+/***************************************************************************************************
+ * @section Main
+ **************************************************************************************************/
 
 int main(int argc, char *argv[])
 {
@@ -167,13 +190,15 @@ pseudo_reset:
 #endif
     assert(instance);
 
+    //ADD INITS BELOW
+
     otAppCliInit(instance);
 
     /* Register Thread state change handler */
     otSetStateChangedCallback(instance, handleNetifStateChanged, instance);
 
     /* Override default network credentials */
-    setNetworkConfiguration(instance);
+    initNetworkConfiguration(instance);
 
     /* init GPIO LEDs and button */
     otSysLedInit();
@@ -186,6 +211,8 @@ pseudo_reset:
     otThreadSetEnabled(instance, true);
 
     initUdp(instance);
+
+    //ADD INITS ABOVE
 
 #if OPENTHREAD_POSIX && !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     otCliSetUserCommands(kCommands, OT_ARRAY_LENGTH(kCommands), instance);
@@ -208,11 +235,157 @@ pseudo_reset:
     return 0;
 }
 
+
+
+
+/***************************************************************************************************
+ * @section Helpers
+ **************************************************************************************************/
+
+
+/**
+ * Send a UDP datagram
+ */
+void sendUdp(otInstance *aInstance)
+{
+    otError       error = OT_ERROR_NONE;
+    otMessage *   message;
+    otMessageInfo messageInfo;
+    otIp6Address  destinationAddr;
+    uint16_t aRloc16;
+    char str[80];
+
+    memset(&messageInfo, 0, sizeof(messageInfo));
+
+    aRloc16 = otThreadGetRloc16(aInstance);
+    sprintf(str, "%s-0x%x", UDP_PAYLOAD_SHUTDOWN, aRloc16);
+    otIp6AddressFromString(UDP_DEST_ADDR, &destinationAddr);
+    messageInfo.mPeerAddr    = destinationAddr;
+    messageInfo.mPeerPort    = UDP_PORT;
+
+    message = otUdpNewMessage(aInstance, NULL);
+    otEXPECT_ACTION(message != NULL, error = OT_ERROR_NO_BUFS);
+
+    error = otMessageAppend(message, str, sizeof(str));
+    otEXPECT(error == OT_ERROR_NONE);
+
+    error = otUdpSend(aInstance, &sUdpSocket, message, &messageInfo);
+
+    otSysLedSet(1, true);
+    otSysLedSet(2, true);
+    otSysLedSet(3, true);
+ exit:
+    if (error != OT_ERROR_NONE && message != NULL)
+    {
+        otMessageFree(message);
+    }
+}
+
+/***************************************************************************************************
+ * @section Handlers
+ **************************************************************************************************/
+
+/**
+ * Function to handle button push event
+ */
+void handleButtonInterrupt(otInstance *aInstance)
+{
+    otCliOutputFormat("Sending UDP multicast\n\r");
+    otCliOutputFormat("DISCONNECTING FROM NETWORK!\n\r");
+    sendUdp(aInstance);
+}
+
+/**
+ * Function to handle UDP datagrams received on the listening socket
+ */
+void handleUdpReceive(void *aContext, otMessage *aMessage,
+                      const otMessageInfo *aMessageInfo)
+{
+
+    char str[80];
+    int  length;
+    char * token;
+    char * shutdownCommand = "shutdown\0";
+    const char delimiter[2] = "-";
+    uint16_t address;
+
+    otCliOutputFormat("Received UDP multicast\n\r");
+    length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
+    str[length] = '\0';
+    /* get command */
+    token = strtok(str, delimiter);
+
+    if(strcmp(token,shutdownCommand) == 0){
+        /* get address */
+        token = strtok(NULL, delimiter);
+        address = strtol(token,NULL,16);
+        otCliOutputFormat("Removing %x\n\r", address);
+        otThreadRemoveNeighbor(aContext, address);
+    }
+}
+
+void handleNetifStateChanged(uint32_t aFlags, void *aContext)
+{
+   if ((aFlags & OT_CHANGED_THREAD_ROLE) != 0)
+   {
+       otDeviceRole changedRole = otThreadGetDeviceRole(aContext);
+
+       switch (changedRole)
+       {
+       case OT_DEVICE_ROLE_LEADER:
+           otSysLedSet(1, true);
+           otSysLedSet(2, false);
+           otSysLedSet(3, false);
+           break;
+
+       case OT_DEVICE_ROLE_ROUTER:
+           otSysLedSet(1, false);
+           otSysLedSet(2, true);
+           otSysLedSet(3, false);
+           break;
+
+       case OT_DEVICE_ROLE_CHILD:
+           otSysLedSet(1, false);
+           otSysLedSet(2, false);
+           otSysLedSet(3, true);
+           break;
+
+       case OT_DEVICE_ROLE_DETACHED:
+       case OT_DEVICE_ROLE_DISABLED:
+           /* Clear LED4 if Thread is not enabled. */
+           otSysLedSet(4, false);
+           break;
+        }
+    }
+}
+
+/***************************************************************************************************
+ * @section Initialization
+ **************************************************************************************************/
+
+
+/**
+ * Initialize UDP socket
+ */
+void initUdp(otInstance *aInstance)
+{
+    otSockAddr  listenSockAddr;
+    otNetifIdentifier netif = OT_NETIF_THREAD;
+
+    memset(&sUdpSocket, 0, sizeof(sUdpSocket));
+    memset(&listenSockAddr, 0, sizeof(listenSockAddr));
+
+    listenSockAddr.mPort    = UDP_PORT;
+
+    otUdpOpen(aInstance, &sUdpSocket, handleUdpReceive, aInstance);
+    otUdpBind(aInstance, &sUdpSocket, &listenSockAddr, netif);
+}
+
 /**
  * Override default network settings, such as panid, so the devices can join a
  network
  */
-void setNetworkConfiguration(otInstance *aInstance)
+void initNetworkConfiguration(otInstance *aInstance)
 {
     static char          aNetworkName[] = "OTCodelab";
     otOperationalDataset aDataset;
@@ -264,154 +437,3 @@ void setNetworkConfiguration(otInstance *aInstance)
     uint8_t jitterValue = 20;
     otThreadSetRouterSelectionJitter(aInstance, jitterValue);
 }
-
-/*
- * Provide, if required an "otPlatLog()" function
- */
-#if OPENTHREAD_CONFIG_LOG_OUTPUT == OPENTHREAD_CONFIG_LOG_OUTPUT_APP
-void otPlatLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat, ...)
-{
-    va_list ap;
-    va_start(ap, aFormat);
-    otCliPlatLogv(aLogLevel, aLogRegion, aFormat, ap);
-    va_end(ap);
-}
-
-void otPlatLogLine(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aLogLine)
-{
-    otCliPlatLogLine(aLogLevel, aLogRegion, aLogLine);
-}
-
-#endif
-
-void handleNetifStateChanged(uint32_t aFlags, void *aContext)
-{
-   if ((aFlags & OT_CHANGED_THREAD_ROLE) != 0)
-   {
-       otDeviceRole changedRole = otThreadGetDeviceRole(aContext);
-
-       switch (changedRole)
-       {
-       case OT_DEVICE_ROLE_LEADER:
-           otSysLedSet(1, true);
-           otSysLedSet(2, false);
-           otSysLedSet(3, false);
-           break;
-
-       case OT_DEVICE_ROLE_ROUTER:
-           otSysLedSet(1, false);
-           otSysLedSet(2, true);
-           otSysLedSet(3, false);
-           break;
-
-       case OT_DEVICE_ROLE_CHILD:
-           otSysLedSet(1, false);
-           otSysLedSet(2, false);
-           otSysLedSet(3, true);
-           break;
-
-       case OT_DEVICE_ROLE_DETACHED:
-       case OT_DEVICE_ROLE_DISABLED:
-           /* Clear LED4 if Thread is not enabled. */
-           otSysLedSet(4, false);
-           break;
-        }
-    }
-}
-
-/**
- * Function to handle button push event
- */
-void handleButtonInterrupt(otInstance *aInstance)
-{
-    otCliOutputFormat("Sending UDP multicast\n\r");
-    otCliOutputFormat("DISCONNECTING FROM NETWORK!\n\r");
-    sendUdp(aInstance);
-}
-
-/**
- * Initialize UDP socket
- */
-void initUdp(otInstance *aInstance)
-{
-    otSockAddr  listenSockAddr;
-    otNetifIdentifier netif = OT_NETIF_THREAD;
-
-    memset(&sUdpSocket, 0, sizeof(sUdpSocket));
-    memset(&listenSockAddr, 0, sizeof(listenSockAddr));
-
-    listenSockAddr.mPort    = UDP_PORT;
-
-    otUdpOpen(aInstance, &sUdpSocket, handleUdpReceive, aInstance);
-    otUdpBind(aInstance, &sUdpSocket, &listenSockAddr, netif);
-}
-
-/**
- * Send a UDP datagram
- */
-void sendUdp(otInstance *aInstance)
-{
-    otError       error = OT_ERROR_NONE;
-    otMessage *   message;
-    otMessageInfo messageInfo;
-    otIp6Address  destinationAddr;
-    uint16_t aRloc16;
-    char str[80];
-
-    memset(&messageInfo, 0, sizeof(messageInfo));
-
-    aRloc16 = otThreadGetRloc16(aInstance);
-    sprintf(str, "%s-0x%x", UDP_PAYLOAD_SHUTDOWN, aRloc16);
-    otIp6AddressFromString(UDP_DEST_ADDR, &destinationAddr);
-    messageInfo.mPeerAddr    = destinationAddr;
-    messageInfo.mPeerPort    = UDP_PORT;
-
-    message = otUdpNewMessage(aInstance, NULL);
-    otEXPECT_ACTION(message != NULL, error = OT_ERROR_NO_BUFS);
-
-    error = otMessageAppend(message, str, sizeof(str));
-    otEXPECT(error == OT_ERROR_NONE);
-
-    error = otUdpSend(aInstance, &sUdpSocket, message, &messageInfo);
-
-    otSysLedSet(1, true);
-    otSysLedSet(2, true);
-    otSysLedSet(3, true);
- exit:
-    if (error != OT_ERROR_NONE && message != NULL)
-    {
-        otMessageFree(message);
-    }
-}
-
-/**
- * Function to handle UDP datagrams received on the listening socket
- */
-void handleUdpReceive(void *aContext, otMessage *aMessage,
-                      const otMessageInfo *aMessageInfo)
-{
-
-    char str[80];
-    int  length;
-    char * token;
-    char * shutdownCommand = "shutdown\0";
-    const char delimiter[2] = "-";
-    uint16_t address;
-
-    otCliOutputFormat("Received UDP multicast\n\r");
-    length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
-    str[length] = '\0';
-    /* get command */
-    token = strtok(str, delimiter);
-
-    if(strcmp(token,shutdownCommand) == 0){
-        /* get address */
-        token = strtok(NULL, delimiter);
-        address = strtol(token,NULL,16);
-        otCliOutputFormat("Removing %x\n\r", address);
-        otThreadRemoveNeighbor(aContext, address);
-    }
-}
-
-
-
