@@ -341,7 +341,13 @@ public:
      */
     void RemoveNeighbor(Neighbor &aNeighbor);
 
-    void RemoveNeighborC(uint16_t aRloc16);
+   /**
+     * C wrapper - This method removes a link to a neighbor.
+     *
+     * @param[in]  aNeighbor  A reference to the neighbor object.
+     *
+     */
+    void SendAddressRelease_C();
 
     /**
      * This method invalidates a direct link to a neighboring router (due to failed link-layer acks).

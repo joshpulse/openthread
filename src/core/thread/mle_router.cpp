@@ -3390,12 +3390,10 @@ void MleRouter::RemoveRouterLink(Router &aRouter)
     }
 }
 
-void MleRouter::RemoveNeighborC(uint16_t aRloc16)
+
+void MleRouter::SendAddressRelease_C()
 {
-    mRemoval = true;
-    Neighbor *neighbor;
-    neighbor = mNeighborTable.FindNeighbor(aRloc16);
-    RemoveNeighbor(*neighbor);
+    SendAddressRelease();
 }
 
 void MleRouter::RemoveNeighbor(Neighbor &aNeighbor)

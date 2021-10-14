@@ -77,6 +77,9 @@ static void handleButtonInterrupt(otInstance *aInstance);
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
 static otUdpSocket sUdpSocket;
 extern void otAppCliInit(otInstance *aInstance);
+static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]);
+static void initThreadCustomCommands(void *aContext);
+
 
 /***************************************************************************************************
  * @section misc
@@ -186,9 +189,9 @@ pseudo_reset:
 #endif
     assert(instance);
 
-    //ADD INITS BELOW
-
     otAppCliInit(instance);
+
+    //ADD INITS BELOW
 
     /* Register Thread state change handler */
     otSetStateChangedCallback(instance, handleNetifStateChanged, instance);
@@ -200,6 +203,8 @@ pseudo_reset:
     otSysLedInit();
     otSysButtonInit(handleButtonInterrupt); 
 
+    initThreadCustomCommands(instance);
+
     /* Start the Thread network interface (CLI cmd > ifconfig up) */
     otIp6SetEnabled(instance, true);
 
@@ -207,6 +212,8 @@ pseudo_reset:
     otThreadSetEnabled(instance, true);
 
     initUdp(instance);
+
+    
 
     //ADD INITS ABOVE
 
@@ -311,7 +318,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         token = strtok(NULL, delimiter);
         address = strtol(token,NULL,16);
         otCliOutputFormat("Removing %x\n\r", address);
-        otThreadRemoveNeighbor(aContext, address);
+        /*otThreadRemoveNeighbor(aContext, address);*/
     }
 }
 
@@ -428,4 +435,26 @@ void initNetworkConfiguration(otInstance *aInstance)
        Warning: For demo purposes only - not to be used in a real product */
     uint8_t jitterValue = 20;
     otThreadSetRouterSelectionJitter(aInstance, jitterValue);
+}
+
+/**
+ * @brief Function for initializing custom commands
+ */
+static void initThreadCustomCommands(void *aContext){
+    static const otCliCommand customCommands[] = {{"leave", leaveNetwork}};
+    otCliSetUserCommands(customCommands, OT_ARRAY_LENGTH(customCommands), aContext);
+}
+
+/***************************************************************************************************
+ * @section CLI Commands
+ **************************************************************************************************/
+
+/**
+ * @brief Test CLI
+ */
+static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
+    OT_UNUSED_VARIABLE(aContext);
+    OT_UNUSED_VARIABLE(aArgsLength);
+    OT_UNUSED_VARIABLE(aArgs);
+    otThreadRemoveNeighbor(aContext);
 }
