@@ -451,7 +451,8 @@ static void initThreadCustomCommands(void *aContext){
  **************************************************************************************************/
 
 /**
- * @brief Send an CoAP request to release 
+ * @brief Thread 1.1.1 Section 5.9.10.3 specifies a mechanism for sending a message to the Leader and releasing the Router ID.
+ * 
  */
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     OT_UNUSED_VARIABLE(aContext);
@@ -469,5 +470,4 @@ static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     }
 
     otThreadSetEnabled(aContext, false);
-
 }
