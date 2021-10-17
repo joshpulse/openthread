@@ -80,6 +80,7 @@ static otUdpSocket sUdpSocket;
 extern void otAppCliInit(otInstance *aInstance);
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]);
+static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
 
 
@@ -444,7 +445,7 @@ void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int aCh
  * @brief Function for initializing custom commands
  */
 static void initThreadCustomCommands(void *aContext){
-    static const otCliCommand customCommands[] = {{"leave", leaveNetwork}, {"setChild", setChild}};
+    static const otCliCommand customCommands[] = {{"leave", leaveNetwork}, {"setchild", setChild}, {"setrouter", setRouter}};
     otCliSetUserCommands(customCommands, OT_ARRAY_LENGTH(customCommands), aContext);
 }
 
@@ -453,7 +454,7 @@ static void initThreadCustomCommands(void *aContext){
  **************************************************************************************************/
 
 /**
- * @brief Thread 1.1.1 Section 5.9.10.3 specifies a mechanism for sending a message to the Leader and releasing the Router ID.
+ * @brief Releases router address from partition and then turns itself off. If its a child then it becomes a router then releases. Doesnt work with leader.
  * 
  */
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
@@ -461,6 +462,10 @@ static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     OT_UNUSED_VARIABLE(aArgs);
 
     otIp6Address aLeaderRloc;
+
+    if (otThreadGetDeviceRole(aContext) == OT_DEVICE_ROLE_CHILD){
+        setRouter(aContext, 0, "");
+    }
 
     otThreadRemoveNeighbor(aContext);
 
@@ -477,4 +482,11 @@ static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     OT_UNUSED_VARIABLE(aArgsLength);
     OT_UNUSED_VARIABLE(aArgs);
     otThreadSetRouterEligible(aContext, false);
+}
+
+static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]){
+    OT_UNUSED_VARIABLE(aArgsLength);
+    OT_UNUSED_VARIABLE(aArgs);
+    otThreadSetRouterEligible(aContext, true);
+    otThreadBecomeRouter(aContext);
 }
