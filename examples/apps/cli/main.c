@@ -79,7 +79,9 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
 static otUdpSocket sUdpSocket;
 extern void otAppCliInit(otInstance *aInstance);
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]);
+static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
+
 
 
 /***************************************************************************************************
@@ -442,7 +444,7 @@ void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int aCh
  * @brief Function for initializing custom commands
  */
 static void initThreadCustomCommands(void *aContext){
-    static const otCliCommand customCommands[] = {{"leave", leaveNetwork}};
+    static const otCliCommand customCommands[] = {{"leave", leaveNetwork}, {"setChild", setChild}};
     otCliSetUserCommands(customCommands, OT_ARRAY_LENGTH(customCommands), aContext);
 }
 
@@ -455,7 +457,6 @@ static void initThreadCustomCommands(void *aContext){
  * 
  */
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
-    OT_UNUSED_VARIABLE(aContext);
     OT_UNUSED_VARIABLE(aArgsLength);
     OT_UNUSED_VARIABLE(aArgs);
 
@@ -470,4 +471,10 @@ static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     }
 
     otThreadSetEnabled(aContext, false);
+}
+
+static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]){
+    OT_UNUSED_VARIABLE(aArgsLength);
+    OT_UNUSED_VARIABLE(aArgs);
+    otThreadSetRouterEligible(aContext, false);
 }
