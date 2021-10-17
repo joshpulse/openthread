@@ -57,19 +57,20 @@
 
 #include <openthread/dataset_ftd.h>
 
+#include <openthread/ip6.h>
 
 /***************************************************************************************************
  * @section Declarations
  **************************************************************************************************/
 
 #define UDP_PORT 1212
-#define channel 15
+
 
 static const char UDP_DEST_ADDR[] = "ff03::1";
 static const char UDP_PAYLOAD_SHUTDOWN[]   = "shutdown";
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
-static void initNetworkConfiguration(otInstance *aInstance);
+void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int channel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE]);
 static void thread_customCommands_init(void);
 static void initUdp(otInstance *aInstance);
 static void sendUdp(otInstance *aInstance);
@@ -197,7 +198,8 @@ pseudo_reset:
     otSetStateChangedCallback(instance, handleNetifStateChanged, instance);
 
     /* Override default network credentials */
-    initNetworkConfiguration(instance);
+    uint8_t key[OT_NETWORK_KEY_SIZE] = {0x12, 0x34, 0xC0, 0xDE, 0x1A, 0xB5, 0x12, 0x34, 0xC0, 0xDE, 0x1A, 0xB5, 0x12, 0x34, 0xC0, 0xDE};
+    initNetworkConfiguration(instance, "OTCodelab", 15, 0x2222, key);
 
     /* init GPIO LEDs and button */
     otSysLedInit();
@@ -307,7 +309,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     const char delimiter[2] = "-";
     uint16_t address;
 
-    otCliOutputFormat("Received UDP multicast\n\r");
+    ("Received UDP multicast\n\r");
     length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
     str[length] = '\0';
     /* get command */
@@ -353,8 +355,9 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
 
        case OT_DEVICE_ROLE_DETACHED:
        case OT_DEVICE_ROLE_DISABLED:
-           /* Clear LED4 if Thread is not enabled. */
-           otSysLedSet(4, false);
+           otSysLedSet(1, false);
+           otSysLedSet(2, false);
+           otSysLedSet(3, false);
            break;
         }
     }
@@ -384,9 +387,8 @@ void initUdp(otInstance *aInstance)
 /**
  * @brief Override default network settings, such as panid, so the devices can join a network
  */
-void initNetworkConfiguration(otInstance *aInstance)
+void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int aChannel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE])
 {
-    static char          aNetworkName[] = "OTCodelab";
     otOperationalDataset aDataset;
 
     memset(&aDataset, 0, sizeof(otOperationalDataset));
@@ -400,11 +402,11 @@ void initNetworkConfiguration(otInstance *aInstance)
     aDataset.mComponents.mIsActiveTimestampPresent = true;
 
     /* Set Channel to 15 */
-    aDataset.mChannel                      = channel;
+    aDataset.mChannel                      = aChannel;
     aDataset.mComponents.mIsChannelPresent = true;
 
     /* Set Pan ID to 2222 */
-    aDataset.mPanId                      = (otPanId)0x2222;
+    aDataset.mPanId                      = aOtPanID;
     aDataset.mComponents.mIsPanIdPresent = true;
 
     /* Set Extended Pan ID to C0DE1AB5C0DE1AB5 */
@@ -413,8 +415,7 @@ void initNetworkConfiguration(otInstance *aInstance)
     aDataset.mComponents.mIsExtendedPanIdPresent = true;
 
     /* Set network key to 1234C0DE1AB51234C0DE1AB51234C0DE */
-    uint8_t key[OT_NETWORK_KEY_SIZE] = {0x12, 0x34, 0xC0, 0xDE, 0x1A, 0xB5, 0x12, 0x34, 0xC0, 0xDE, 0x1A, 0xB5, 0x12, 0x34, 0xC0, 0xDE};
-    memcpy(aDataset.mNetworkKey.m8, key, sizeof(aDataset.mNetworkKey));
+    memcpy(aDataset.mNetworkKey.m8, aKey, sizeof(aDataset.mNetworkKey));
     aDataset.mComponents.mIsNetworkKeyPresent = true;
 
     /* Set Network Name to OTCodelab */
@@ -450,11 +451,23 @@ static void initThreadCustomCommands(void *aContext){
  **************************************************************************************************/
 
 /**
- * @brief Test CLI
+ * @brief Send an CoAP request to release 
  */
 static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     OT_UNUSED_VARIABLE(aContext);
     OT_UNUSED_VARIABLE(aArgsLength);
     OT_UNUSED_VARIABLE(aArgs);
+
+    otIp6Address aLeaderRloc;
+
     otThreadRemoveNeighbor(aContext);
+
+    while(otThreadGetLeaderRloc(aContext, &aLeaderRloc) != OT_ERROR_DETACHED){
+        otTaskletsProcess(aContext);
+        otSysProcessDrivers(aContext);
+        otSysButtonProcess(aContext);
+    }
+
+    otThreadSetEnabled(aContext, false);
+
 }
