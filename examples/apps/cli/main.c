@@ -275,9 +275,6 @@ void sendUdp(otInstance *aInstance)
 
     error = otUdpSend(aInstance, &sUdpSocket, message, &messageInfo);
 
-    otSysLedSet(1, true);
-    otSysLedSet(2, true);
-    otSysLedSet(3, true);
  exit:
     if (error != OT_ERROR_NONE && message != NULL)
     {
@@ -295,7 +292,6 @@ void sendUdp(otInstance *aInstance)
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
-    otCliOutputFormat("DISCONNECTING FROM NETWORK!\n\r");
     sendUdp(aInstance);
 }
 
@@ -322,8 +318,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         /* get address */
         token = strtok(NULL, delimiter);
         address = strtol(token,NULL,16);
-        otCliOutputFormat("Removing %x\n\r", address);
-        /*otThreadRemoveNeighbor(aContext, address);*/
+        otCliOutputFormat("Received from  %x\n\r", address);
     }
 }
 
