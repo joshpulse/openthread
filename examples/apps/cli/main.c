@@ -459,7 +459,7 @@ static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]){
     otIp6Address aLeaderRloc;
 
     if (otThreadGetDeviceRole(aContext) == OT_DEVICE_ROLE_CHILD){
-        setRouter(aContext, 0, "");
+        setRouter(aContext, 0, aArgs);
     }
 
     otThreadRemoveNeighbor(aContext);
