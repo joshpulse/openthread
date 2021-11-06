@@ -67,7 +67,7 @@
 
 
 static const char UDP_DEST_ADDR[] = "ff03::1";
-static const char UDP_PAYLOAD_SHUTDOWN[]   = "shutdown";
+static const char UDP_PAYLOAD_TEST[]   = "test";
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int channel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE]);
@@ -262,7 +262,7 @@ void sendUdp(otInstance *aInstance)
     memset(&messageInfo, 0, sizeof(messageInfo));
 
     aRloc16 = otThreadGetRloc16(aInstance);
-    sprintf(str, "%s-0x%x", UDP_PAYLOAD_SHUTDOWN, aRloc16);
+    sprintf(str, "%s-0x%x", UDP_PAYLOAD_TEST, aRloc16);
     otIp6AddressFromString(UDP_DEST_ADDR, &destinationAddr);
     messageInfo.mPeerAddr    = destinationAddr;
     messageInfo.mPeerPort    = UDP_PORT;
@@ -304,7 +304,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     char str[80];
     int  length;
     char * token;
-    char * shutdownCommand = "shutdown\0";
+    char * testCommand = "test\0";
     const char delimiter[2] = "-";
     uint16_t address;
 
@@ -314,7 +314,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     /* get command */
     token = strtok(str, delimiter);
 
-    if(strcmp(token,shutdownCommand) == 0){
+    if(strcmp(token,testCommand) == 0){
         /* get address */
         token = strtok(NULL, delimiter);
         address = strtol(token,NULL,16);
