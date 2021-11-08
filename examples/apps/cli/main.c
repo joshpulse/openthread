@@ -315,7 +315,7 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
-    sendUdp(aInstance, "NULL", "test", "NULL");
+    sendUdp(aInstance, "ff", "test", "NULL");
 }
 
 /**
@@ -326,12 +326,25 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     char destination[MAX_UDP_PARAMETER_LEN];
     char command[MAX_UDP_PARAMETER_LEN];
     char argument[MAX_UDP_PARAMETER_LEN];
+    otExtAddress aEui64;
+    char str_aEui64[2];
 
     parsePayload(aMessage, destination, command, argument);
+
+    otLinkGetFactoryAssignedIeeeEui64(aContext, &aEui64);
+    sprintf(str_aEui64,"%02x", aEui64.m8[0]);
+
+    if(strcmp(destination, str_aEui64) != 0 && strcmp(destination, "ff") != 0){
+        otCliOutputFormat("nope\r\n");
+        return;
+    }
+
 
     otCliOutputFormat("\r\n===========UDP RECEIVED===========\r\n");
     otCliOutputFormat("%s\n\r%s\n\r%s\n\r", destination, command, argument);
     otCliOutputFormat("===========UDP RECEIVED===========\r\n");
+
+    
 
 }
 
