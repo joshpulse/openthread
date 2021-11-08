@@ -64,6 +64,7 @@
  **************************************************************************************************/
 
 #define UDP_PORT 1212
+#define MAX_UDP_PARAMETER_LEN 16
 
 
 static const char UDP_DEST_ADDR[] = "ff03::1";
@@ -73,7 +74,7 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int channel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE]);
 static void thread_customCommands_init(void);
 static void initUdp(otInstance *aInstance);
-static void sendUdp(otInstance *aInstance);
+static void sendUdp(otInstance *aInstance, char *destination, char *command, char *argument);
 static void handleButtonInterrupt(otInstance *aInstance);
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
 static otUdpSocket sUdpSocket;
@@ -82,6 +83,7 @@ static void leaveNetwork(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
+void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
 
 
 
@@ -247,22 +249,22 @@ pseudo_reset:
  * @section Helpers
  **************************************************************************************************/
 
+
 /**
- * @brief Send a UDP datagram
+ * @brief Send a UDP test datagram
  */
-void sendUdp(otInstance *aInstance)
+void sendUdp(otInstance *aInstance, char *destination, char *command, char *argument)
 {
     otError       error = OT_ERROR_NONE;
     otMessage *   message;
     otMessageInfo messageInfo;
     otIp6Address  destinationAddr;
     uint16_t aRloc16;
-    char str[80];
+    char str[MAX_UDP_PARAMETER_LEN * 3 + 2];
 
     memset(&messageInfo, 0, sizeof(messageInfo));
 
-    aRloc16 = otThreadGetRloc16(aInstance);
-    sprintf(str, "%s-0x%x", UDP_PAYLOAD_TEST, aRloc16);
+    sprintf(str, "%s-%s-%s", destination, command, argument);
     otIp6AddressFromString(UDP_DEST_ADDR, &destinationAddr);
     messageInfo.mPeerAddr    = destinationAddr;
     messageInfo.mPeerPort    = UDP_PORT;
@@ -282,6 +284,27 @@ void sendUdp(otInstance *aInstance)
     }
 }
 
+/**
+ * @brief read a UDP message output the three arguments
+ */
+void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument){
+
+    char str[MAX_UDP_PARAMETER_LEN * 3 + 2];
+    int  length;
+    const char delimiter[2] = "-";
+    char *token;
+
+    length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
+    str[length] = '\0';
+
+    token = strtok(str, delimiter);
+    strcpy(destination, token);
+    token = strtok(NULL, delimiter);
+    strcpy(command, token);
+    token = strtok(NULL, delimiter);
+    strcpy(argument, token);
+}
+
 /***************************************************************************************************
  * @section Handlers
  **************************************************************************************************/
@@ -292,7 +315,7 @@ void sendUdp(otInstance *aInstance)
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
-    sendUdp(aInstance);
+    sendUdp(aInstance, "NULL", "test", "NULL");
 }
 
 /**
@@ -300,26 +323,16 @@ void handleButtonInterrupt(otInstance *aInstance)
  */
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
+    char destination[MAX_UDP_PARAMETER_LEN];
+    char command[MAX_UDP_PARAMETER_LEN];
+    char argument[MAX_UDP_PARAMETER_LEN];
 
-    char str[80];
-    int  length;
-    char * token;
-    char * testCommand = "test\0";
-    const char delimiter[2] = "-";
-    uint16_t address;
+    parsePayload(aMessage, destination, command, argument);
 
-    ("Received UDP multicast\n\r");
-    length = otMessageRead(aMessage, otMessageGetOffset(aMessage), str, sizeof(str) - 1);
-    str[length] = '\0';
-    /* get command */
-    token = strtok(str, delimiter);
+    otCliOutputFormat("\r\n===========UDP RECEIVED===========\r\n");
+    otCliOutputFormat("%s\n\r%s\n\r%s\n\r", destination, command, argument);
+    otCliOutputFormat("===========UDP RECEIVED===========\r\n");
 
-    if(strcmp(token,testCommand) == 0){
-        /* get address */
-        token = strtok(NULL, delimiter);
-        address = strtol(token,NULL,16);
-        otCliOutputFormat("Received from  %x\n\r", address);
-    }
 }
 
 /**
