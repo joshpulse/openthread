@@ -327,7 +327,9 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     char argument[MAX_UDP_PARAMETER_LEN];
     otExtAddress aEui64;
     char str_aEui64[2];
+    char returnAddressString[64];
     char str[64];
+
 
     parsePayload(aMessage, destination, command, argument);
 
@@ -337,16 +339,21 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     if(strcmp(destination, str_aEui64) != 0 && strcmp(destination, "ff") != 0){
         return;
     }
+    const otIp6Address *aAddress = &aMessageInfo->mPeerAddr;
+    otIp6AddressToString(aAddress, returnAddressString, OT_IP6_ADDRESS_STRING_SIZE);
+    otCliOutputFormat("%d bytes from ", otMessageGetLength(aMessage) - otMessageGetOffset(aMessage));
+    otCliOutputFormat("%s\n\r", returnAddressString);
+    otCliOutputFormat("%s-%s-%s\n\r", destination, command, argument);
 
-    if(strcmp(command, "test" ) == 0){
-        const otIp6Address *aAddress = &aMessageInfo->mPeerAddr;
-        otIp6AddressToString(aAddress, str, OT_IP6_ADDRESS_STRING_SIZE);
-        otCliOutputFormat("%d bytes from ", otMessageGetLength(aMessage) - otMessageGetOffset(aMessage));
-        otCliOutputFormat("%s\n\r", str);
-        otCliOutputFormat("%s-%s-%s\n\r", destination, command, argument);
-        if(strcmp(argument, "syn") == 0){
-            sendUdp(aContext, str, "ff", "test", "ack");
-        }
+    if(strcmp(command, "test" ) == 0 && strcmp(argument, "syn") == 0){
+        sendUdp(aContext, returnAddressString, "ff", "test", "ack");
+    }
+
+    else if(strcmp(command, "txpower") == 0 && strcmp(argument, "get") == 0){
+        int8_t *aPower;
+        otPlatRadioGetTransmitPower(aContext, &aPower);
+        sprintf(str, "%d", aPower);
+        sendUdp(aContext, returnAddressString, "ff", "txpower", str);
     }
 
             
