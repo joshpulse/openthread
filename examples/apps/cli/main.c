@@ -33,47 +33,40 @@
 #include <assert.h>
 #include <openthread-core-config.h>
 #include <openthread/config.h>
-
 #include <openthread/cli.h>
 #include <openthread/diag.h>
 #include <openthread/tasklet.h>
 #include <openthread/platform/logging.h>
-
 #include "openthread-system.h"
 #include "cli/cli_config.h"
 #include "common/code_utils.hpp"
-
 #include <openthread/instance.h>
 #include <openthread/thread.h>
 #include <openthread/thread_ftd.h>
-
 #include <string.h>
 #include <stdio.h>
-
 #include <openthread/message.h>
 #include <openthread/udp.h>
-
 #include "utils/code_utils.h"
-
 #include <openthread/dataset_ftd.h>
-
 #include <openthread/ip6.h>
+#include <openthread/platform/time.h>
 
 /***************************************************************************************************
  * @section Declarations
  **************************************************************************************************/
 
 #define UDP_PORT 1212
-#define MAX_UDP_PARAMETER_LEN 16
-
+#define MAX_UDP_PARAMETER_LEN 50
 
 static char UDP_MULTICAST_ADDR[] = "ff03::1";
+int32_t udpCounter = 0;
 
 void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int channel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE]);
 static void thread_customCommands_init(void);
 static void initUdp(otInstance *aInstance);
-static void sendUdp(otInstance *aInstance, char *ipDestination, char *euiDestination, char *command, char *argument);
+void sendUdp(otInstance *aInstance, char* ipDestination,  char *payload);
 static void handleButtonInterrupt(otInstance *aInstance);
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
 static otUdpSocket sUdpSocket;
@@ -83,6 +76,9 @@ static void setChild(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
+void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aMessage);
+void getEuidEnd(otInstance *aContext, char aEuid[2]);
 
 
 
@@ -248,22 +244,50 @@ pseudo_reset:
  * @section Helpers
  **************************************************************************************************/
 
+/**
+ * @brief Get last two characters of EUID
+ */
+void getEuidEnd(otInstance *aContext, char aEuid[2]){
+    otExtAddress aEuid64;
+    otLinkGetFactoryAssignedIeeeEui64(aContext, &aEuid64);
+    sprintf(aEuid,"%02x", aEuid64.m8[7]);
+}
 
 /**
- * @brief Send a UDP test datagram
+ * @brief Send a UDP remote command datagram
  */
-void sendUdp(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument)
+void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument){
+    char str[MAX_UDP_PARAMETER_LEN];
+    sprintf(str, "%s-%s-%s", euiDestination, command, argument);
+    sendUdp(aInstance, ipDestination, str);
+}
+
+/**
+ * @brief Send a UDP data datagram
+ */
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aMessage){
+    char str[MAX_UDP_PARAMETER_LEN];
+    char aEuid[2];
+    uint64_t aTime = otPlatTimeGet();
+    getEuidEnd(aInstance, aEuid);
+    sprintf(str, "%d, %d, %02x, %s", udpCounter, aTime, aEuid, aMessage);
+    sendUdp(aInstance, ipDestination, str);
+    udpCounter++;
+}
+
+
+/**
+ * @brief Send a UDP datagram
+ */
+void sendUdp(otInstance *aInstance, char* ipDestination,  char* payload)
 {
     otError       error = OT_ERROR_NONE;
     otMessage *   message;
     otMessageInfo messageInfo;
     otIp6Address  destinationAddr;
-    uint16_t aRloc16;
-    char str[MAX_UDP_PARAMETER_LEN * 3 + 2];
-
+    
     memset(&messageInfo, 0, sizeof(messageInfo));
 
-    sprintf(str, "%s-%s-%s", euiDestination, command, argument);
     otIp6AddressFromString(ipDestination, &destinationAddr);
     messageInfo.mPeerAddr    = destinationAddr;
     messageInfo.mPeerPort    = UDP_PORT;
@@ -271,7 +295,7 @@ void sendUdp(otInstance *aInstance, char* ipDestination,  char *euiDestination, 
     message = otUdpNewMessage(aInstance, NULL);
     otEXPECT_ACTION(message != NULL, error = OT_ERROR_NO_BUFS);
 
-    error = otMessageAppend(message, str, sizeof(str));
+    error = otMessageAppend(message, payload, MAX_UDP_PARAMETER_LEN);
     otEXPECT(error == OT_ERROR_NONE);
 
     error = otUdpSend(aInstance, &sUdpSocket, message, &messageInfo);
@@ -288,7 +312,7 @@ void sendUdp(otInstance *aInstance, char* ipDestination,  char *euiDestination, 
  */
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument){
 
-    char str[MAX_UDP_PARAMETER_LEN * 3 + 2];
+    char str[MAX_UDP_PARAMETER_LEN];
     int  length;
     const char delimiter[2] = "-";
     char *token;
@@ -314,7 +338,7 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
-    sendUdp(aInstance, UDP_MULTICAST_ADDR, "ff", "test", "syn");
+    sendCommandUDP(aInstance, UDP_MULTICAST_ADDR, "ff", "test", "syn");
 }
 
 /**
@@ -325,18 +349,14 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     char destination[MAX_UDP_PARAMETER_LEN];
     char command[MAX_UDP_PARAMETER_LEN];
     char argument[MAX_UDP_PARAMETER_LEN];
-    otExtAddress aEui64;
-    char str_aEui64[2];
+    char aEuid[2];
     char returnAddressString[64];
     char str[64];
 
-
+    getEuidEnd(aContext, aEuid);
     parsePayload(aMessage, destination, command, argument);
 
-    otLinkGetFactoryAssignedIeeeEui64(aContext, &aEui64);
-    sprintf(str_aEui64,"%02x", aEui64.m8[7]);
-
-    if(strcmp(destination, str_aEui64) != 0 && strcmp(destination, "ff") != 0){
+    if(strcmp(destination, aEuid) != 0 && strcmp(destination, "ff") != 0){
         return;
     }
     const otIp6Address *aAddress = &aMessageInfo->mPeerAddr;
@@ -346,20 +366,15 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     otCliOutputFormat("%s-%s-%s\n\r", destination, command, argument);
 
     if(strcmp(command, "test" ) == 0 && strcmp(argument, "syn") == 0){
-        sendUdp(aContext, returnAddressString, "ff", "test", "ack");
+        sendCommandUDP(aContext, returnAddressString, "ff", "test", "ack");
     }
 
     else if(strcmp(command, "txpower") == 0 && strcmp(argument, "get") == 0){
-        int8_t *aPower;
+        int8_t aPower;
         otPlatRadioGetTransmitPower(aContext, &aPower);
         sprintf(str, "%d", aPower);
-        sendUdp(aContext, returnAddressString, "ff", "txpower", str);
+        sendCommandUDP(aContext, returnAddressString, "ff", "txpower", str);
     }
-
-            
-
-
-    
 
 }
 
