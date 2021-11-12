@@ -334,7 +334,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     parsePayload(aMessage, destination, command, argument);
 
     otLinkGetFactoryAssignedIeeeEui64(aContext, &aEui64);
-    sprintf(str_aEui64,"%02x", aEui64.m8[0]);
+    sprintf(str_aEui64,"%02x", aEui64.m8[7]);
 
     if(strcmp(destination, str_aEui64) != 0 && strcmp(destination, "ff") != 0){
         return;
