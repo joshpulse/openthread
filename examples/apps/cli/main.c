@@ -56,8 +56,9 @@
  * @section Declarations
  **************************************************************************************************/
 
-#define UDP_PORT 1212
-#define MAX_UDP_PARAMETER_LEN 50
+#define UDP_COMMAND_PORT 1212
+#define UDP_DATA_PORT 1213
+#define MAX_UDP_PARAMETER_LEN 64
 
 static char UDP_MULTICAST_ADDR[] = "ff03::1";
 int32_t udpCounter = 0;
@@ -66,7 +67,7 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext);
 void initNetworkConfiguration(otInstance *aInstance, char *aNetworkName, int channel, otPanId aOtPanID, uint8_t aKey[OT_NETWORK_KEY_SIZE]);
 static void thread_customCommands_init(void);
 static void initUdp(otInstance *aInstance);
-void sendUdp(otInstance *aInstance, char* ipDestination,  char *payload);
+void sendUdp(otInstance *aInstance, char* ipDestination,  char *payload, int port);
 static void handleButtonInterrupt(otInstance *aInstance);
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo);
 static otUdpSocket sUdpSocket;
@@ -77,7 +78,7 @@ static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aMessage);
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, char* aMessage);
 void getEuidEnd(otInstance *aContext, char aEuid[2]);
 
 
@@ -259,19 +260,19 @@ void getEuidEnd(otInstance *aContext, char aEuid[2]){
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument){
     char str[MAX_UDP_PARAMETER_LEN];
     sprintf(str, "%s-%s-%s", euiDestination, command, argument);
-    sendUdp(aInstance, ipDestination, str);
+    sendUdp(aInstance, ipDestination, str, UDP_COMMAND_PORT);
 }
 
 /**
  * @brief Send a UDP data datagram
  */
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aMessage){
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand,  char* aMessage){
     char str[MAX_UDP_PARAMETER_LEN];
     char aEuid[2];
-    uint64_t aTime = otPlatTimeGet();
+    uint32_t aTime = otPlatTimeGet(); 
     getEuidEnd(aInstance, aEuid);
-    sprintf(str, "%d, %d, %02x, %s", udpCounter, aTime, aEuid, aMessage);
-    sendUdp(aInstance, ipDestination, str);
+    sprintf(str, "%s, %d, %s, %d, %s*", aEuid, udpCounter, aCommand, aTime, aMessage);
+    sendUdp(aInstance, ipDestination, str, UDP_DATA_PORT);
     udpCounter++;
 }
 
@@ -279,7 +280,7 @@ void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aMessage){
 /**
  * @brief Send a UDP datagram
  */
-void sendUdp(otInstance *aInstance, char* ipDestination,  char* payload)
+void sendUdp(otInstance *aInstance, char* ipDestination,  char* payload, int port)
 {
     otError       error = OT_ERROR_NONE;
     otMessage *   message;
@@ -290,7 +291,7 @@ void sendUdp(otInstance *aInstance, char* ipDestination,  char* payload)
 
     otIp6AddressFromString(ipDestination, &destinationAddr);
     messageInfo.mPeerAddr    = destinationAddr;
-    messageInfo.mPeerPort    = UDP_PORT;
+    messageInfo.mPeerPort    = port;
 
     message = otUdpNewMessage(aInstance, NULL);
     otEXPECT_ACTION(message != NULL, error = OT_ERROR_NO_BUFS);
@@ -326,6 +327,8 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
     strcpy(command, token);
     token = strtok(NULL, delimiter);
     strcpy(argument, token);
+
+    
 }
 
 /***************************************************************************************************
@@ -346,9 +349,9 @@ void handleButtonInterrupt(otInstance *aInstance)
  */
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
-    char destination[MAX_UDP_PARAMETER_LEN];
-    char command[MAX_UDP_PARAMETER_LEN];
-    char argument[MAX_UDP_PARAMETER_LEN];
+    char destination[MAX_UDP_PARAMETER_LEN/5];
+    char command[MAX_UDP_PARAMETER_LEN/5];
+    char argument[MAX_UDP_PARAMETER_LEN/5];
     char aEuid[2];
     char returnAddressString[64];
     char str[64];
@@ -373,7 +376,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         int8_t aPower;
         otPlatRadioGetTransmitPower(aContext, &aPower);
         sprintf(str, "%d", aPower);
-        sendCommandUDP(aContext, returnAddressString, "ff", "txpower", str);
+        sendDataUDP(aContext, returnAddressString, command, str);
     }
 
 }
@@ -432,7 +435,7 @@ void initUdp(otInstance *aInstance)
     memset(&sUdpSocket, 0, sizeof(sUdpSocket));
     memset(&listenSockAddr, 0, sizeof(listenSockAddr));
 
-    listenSockAddr.mPort    = UDP_PORT;
+    listenSockAddr.mPort    = UDP_COMMAND_PORT;
 
     otUdpOpen(aInstance, &sUdpSocket, handleUdpReceive, aInstance);
     otUdpBind(aInstance, &sUdpSocket, &listenSockAddr, netif);
