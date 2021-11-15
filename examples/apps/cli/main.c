@@ -341,6 +341,7 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
+    sendDataUDP(aInstance, UDP_MULTICAST_ADDR, "button", "1");
     sendCommandUDP(aInstance, UDP_MULTICAST_ADDR, "ff", "test", "syn");
 }
 
