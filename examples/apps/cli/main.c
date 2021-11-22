@@ -380,6 +380,13 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         sendDataUDP(aContext, returnAddressString, command, str);
     }
 
+    else if(strcmp(command, "ip") == 0 && strcmp(argument, "get") == 0){
+        const otIp6Address *aRloc = otThreadGetRloc(aContext);
+        char aRlocString[16];
+        otIp6AddressToString(aRloc, aRlocString, OT_IP6_ADDRESS_STRING_SIZE);
+        sendDataUDP(aContext, returnAddressString, command, aRlocString);
+    }
+
 }
 
 /**
