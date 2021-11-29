@@ -51,6 +51,7 @@
 #include <openthread/dataset_ftd.h>
 #include <openthread/ip6.h>
 #include <openthread/platform/time.h>
+#include <openthread/ping_sender.h>
 
 /***************************************************************************************************
  * @section Declarations
@@ -80,6 +81,7 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
 void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, char* aMessage);
 void getEuidEnd(otInstance *aContext, char aEuid[2]);
+void HandlePingStatistics(const otPingSenderStatistics *aStatistics, void *aContext);
 
 
 
@@ -331,6 +333,8 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
     
 }
 
+
+
 /***************************************************************************************************
  * @section Handlers
  **************************************************************************************************/
@@ -356,6 +360,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     char aEuid[2];
     char returnAddressString[64];
     char str[64];
+    otError error = OT_ERROR_NONE;
 
     getEuidEnd(aContext, aEuid);
     parsePayload(aMessage, destination, command, argument);
@@ -387,6 +392,27 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         sendDataUDP(aContext, returnAddressString, command, aRlocString);
     }
 
+    else if(strcmp(command, "ping") == 0){
+        otPingSenderConfig config;
+        memset(&config, 0, sizeof(config));
+        otIp6Address aDestination;
+
+        otIp6AddressFromString(argument, &aDestination);
+
+        config.mDestination         = aDestination;
+        memcpy(&config.mSource, otThreadGetRloc(aContext), 16);
+        config.mStatisticsCallback  = HandlePingStatistics;
+        config.mCallbackContext     = aContext;
+ 
+        error = otPingSenderPing(aContext, &config);
+
+        otCliOutputFormat("%s\r\n",otThreadErrorToString(error));
+    }
+
+}
+
+void HandlePingStatistics(const otPingSenderStatistics *aStatistics, void *aContext){
+    otCliOutputFormat("%u packets transmitted, %u packets received.", aStatistics->mSentCount, aStatistics->mReceivedCount);
 }
 
 /**
