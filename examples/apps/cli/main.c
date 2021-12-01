@@ -354,9 +354,9 @@ void handleButtonInterrupt(otInstance *aInstance)
  */
 void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
-    char destination[MAX_UDP_PARAMETER_LEN/5];
-    char command[MAX_UDP_PARAMETER_LEN/5];
-    char argument[MAX_UDP_PARAMETER_LEN/5];
+    char destination[2];
+    char command[16];
+    char argument[16];
     char aEuid[2];
     char returnAddressString[64];
     char str[64];
@@ -407,6 +407,20 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         error = otPingSenderPing(aContext, &config);
 
         otCliOutputFormat("%s\r\n",otThreadErrorToString(error));
+    }
+
+    else if(strcmp(command, "macfilteradd") ==0 ){
+        sprintf(str, "macfilter addr denylist\0");
+        otCliInputLine(str);
+        sprintf(str, "macfilter addr add %s\0", argument);
+        otCliInputLine(str);
+        otCliOutputFormat("added filter for %s\n\r", argument);
+    }
+
+    else if(strcmp(command, "macfilterremove") ==0 ){
+        sprintf(str, "macfilter addr remove %s\0", argument);
+        otCliInputLine(str);
+        otCliOutputFormat("removed filter for %s\n\r", argument);
     }
 
 }
