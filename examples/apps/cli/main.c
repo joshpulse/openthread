@@ -79,7 +79,7 @@ static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, char* aMessage);
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const char* aMessage);
 void getEuidEnd(otInstance *aContext, char aEuid[2]);
 void HandlePingStatistics(const otPingSenderStatistics *aStatistics, void *aContext);
 
@@ -268,7 +268,7 @@ void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestin
 /**
  * @brief Send a UDP data datagram
  */
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand,  char* aMessage){
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const  char* aMessage){
     char str[MAX_UDP_PARAMETER_LEN];
     char aEuid[2];
     uint32_t aTime = otPlatTimeGet(); 
@@ -409,7 +409,7 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         otCliOutputFormat("%s\r\n",otThreadErrorToString(error));
     }
 
-    else if(strcmp(command, "macfilteradd") ==0 ){
+    else if(strcmp(command, "macFilterAdd") == 0 ){
         sprintf(str, "macfilter addr denylist\0");
         otCliInputLine(str);
         sprintf(str, "macfilter addr add %s\0", argument);
@@ -417,10 +417,14 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         otCliOutputFormat("added filter for %s\n\r", argument);
     }
 
-    else if(strcmp(command, "macfilterremove") ==0 ){
+    else if(strcmp(command, "macFilterRemove") == 0 ){
         sprintf(str, "macfilter addr remove %s\0", argument);
         otCliInputLine(str);
         otCliOutputFormat("removed filter for %s\n\r", argument);
+    }
+
+    else if(strcmp(command, "threadStop") == 0){
+        otThreadSetEnabled(aContext, false);
     }
 
 }
@@ -465,6 +469,8 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
            otSysLedSet(3, false);
            break;
         }
+    
+        sendDataUDP(aContext, UDP_MULTICAST_ADDR, "stateChange", otThreadDeviceRoleToString(changedRole));
     }
 }
 
