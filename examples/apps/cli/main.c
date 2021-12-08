@@ -275,7 +275,9 @@ void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, con
     getEuidEnd(aInstance, aEuid);
     sprintf(str, "%s, %d, %s, %d, %s*", aEuid, udpCounter, aCommand, aTime, aMessage);
     sendUdp(aInstance, ipDestination, str, UDP_DATA_PORT);
+    otCliOutputFormat("%s\n\r", str);
     udpCounter++;
+
 }
 
 
@@ -424,6 +426,14 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     }
 
     else if(strcmp(command, "threadStop") == 0){
+        uint32_t aTime = otPlatTimeGet() + 10000;
+        sprintf(str, "%d", aTime);
+        sendDataUDP(aContext, returnAddressString, command, str);
+        while(otPlatTimeGet() < aTime){
+            otTaskletsProcess(aContext);
+            otSysProcessDrivers(aContext);
+            otSysButtonProcess(aContext);
+        }
         otThreadSetEnabled(aContext, false);
     }
 
