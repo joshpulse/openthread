@@ -60,6 +60,8 @@
 #define UDP_COMMAND_PORT 1212
 #define UDP_DATA_PORT 1213
 #define MAX_UDP_PARAMETER_LEN 64
+#define UDP_WAIT_TIME 10000
+
 
 static char UDP_MULTICAST_ADDR[] = "ff03::1";
 int32_t udpCounter = 0;
@@ -79,9 +81,10 @@ static void setRouter(void *aContext, uint8_t aArgsLength, char *aArgs[]);
 static void initThreadCustomCommands(void *aContext);
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const char* aMessage);
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const char* aMessage, uint32_t addTime);
 void getEuidEnd(otInstance *aContext, char aEuid[2]);
 void HandlePingStatistics(const otPingSenderStatistics *aStatistics, void *aContext);
+void sleep(otInstance *aInstance, uint32_t waitTime);
 
 
 
@@ -268,10 +271,10 @@ void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestin
 /**
  * @brief Send a UDP data datagram
  */
-void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const  char* aMessage){
+void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const  char* aMessage, uint32_t addTime){
     char str[MAX_UDP_PARAMETER_LEN];
     char aEuid[2];
-    uint32_t aTime = otPlatTimeGet(); 
+    uint32_t aTime = otPlatTimeGet() + addTime; 
     getEuidEnd(aInstance, aEuid);
     sprintf(str, "%s, %d, %s, %d, %s*", aEuid, udpCounter, aCommand, aTime, aMessage);
     sendUdp(aInstance, ipDestination, str, UDP_DATA_PORT);
@@ -335,7 +338,14 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
     
 }
 
-
+void sleep(otInstance *aInstance, uint32_t waitTime){
+    uint32_t aTime = otPlatTimeGet() + waitTime;
+    while(otPlatTimeGet() < aTime){
+            otTaskletsProcess(aInstance);
+            otSysProcessDrivers(aInstance);
+            otSysButtonProcess(aInstance);
+    }
+}
 
 /***************************************************************************************************
  * @section Handlers
@@ -347,7 +357,7 @@ void parsePayload(otMessage *aMessage, char *destination, char *command, char *a
 void handleButtonInterrupt(otInstance *aInstance)
 {
     otCliOutputFormat("Sending UDP multicast\n\r");
-    sendDataUDP(aInstance, UDP_MULTICAST_ADDR, "button", "1");
+    sendDataUDP(aInstance, UDP_MULTICAST_ADDR, "button", "1", 0);
     sendCommandUDP(aInstance, UDP_MULTICAST_ADDR, "ff", "test", "syn");
 }
 
@@ -384,14 +394,14 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
         int8_t aPower;
         otPlatRadioGetTransmitPower(aContext, &aPower);
         sprintf(str, "%d", aPower);
-        sendDataUDP(aContext, returnAddressString, command, str);
+        sendDataUDP(aContext, returnAddressString, command, str, 0);
     }
 
     else if(strcmp(command, "ip") == 0 && strcmp(argument, "get") == 0){
         const otIp6Address *aRloc = otThreadGetRloc(aContext);
         char aRlocString[16];
         otIp6AddressToString(aRloc, aRlocString, OT_IP6_ADDRESS_STRING_SIZE);
-        sendDataUDP(aContext, returnAddressString, command, aRlocString);
+        sendDataUDP(aContext, returnAddressString, command, aRlocString, 0);
     }
 
     else if(strcmp(command, "ping") == 0){
@@ -426,14 +436,9 @@ void handleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *
     }
 
     else if(strcmp(command, "threadStop") == 0){
-        uint32_t aTime = otPlatTimeGet() + 10000;
-        sprintf(str, "%d", aTime);
-        sendDataUDP(aContext, returnAddressString, command, str);
-        while(otPlatTimeGet() < aTime){
-            otTaskletsProcess(aContext);
-            otSysProcessDrivers(aContext);
-            otSysButtonProcess(aContext);
-        }
+        uint32_t aTime = otPlatTimeGet() + UDP_WAIT_TIME;
+        sendDataUDP(aContext, returnAddressString, command, "stopped", UDP_WAIT_TIME);
+        sleep(aContext, UDP_WAIT_TIME);
         otThreadSetEnabled(aContext, false);
     }
 
@@ -458,18 +463,24 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
            otSysLedSet(1, true);
            otSysLedSet(2, false);
            otSysLedSet(3, false);
+           sleep(aContext, UDP_WAIT_TIME);
+           sendDataUDP(aContext, UDP_MULTICAST_ADDR, "stateChange", otThreadDeviceRoleToString(changedRole), -UDP_WAIT_TIME);
            break;
 
        case OT_DEVICE_ROLE_ROUTER:
            otSysLedSet(1, false);
            otSysLedSet(2, true);
            otSysLedSet(3, false);
+           sleep(aContext, UDP_WAIT_TIME);
+           sendDataUDP(aContext, UDP_MULTICAST_ADDR, "stateChange", otThreadDeviceRoleToString(changedRole), -UDP_WAIT_TIME);
            break;
 
        case OT_DEVICE_ROLE_CHILD:
            otSysLedSet(1, false);
            otSysLedSet(2, false);
            otSysLedSet(3, true);
+           sleep(aContext, UDP_WAIT_TIME);
+           sendDataUDP(aContext, UDP_MULTICAST_ADDR, "stateChange", otThreadDeviceRoleToString(changedRole), -UDP_WAIT_TIME);
            break;
 
        case OT_DEVICE_ROLE_DETACHED:
@@ -480,7 +491,7 @@ void handleNetifStateChanged(uint32_t aFlags, void *aContext)
            break;
         }
     
-        sendDataUDP(aContext, UDP_MULTICAST_ADDR, "stateChange", otThreadDeviceRoleToString(changedRole));
+        
     }
 }
 
