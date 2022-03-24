@@ -61,6 +61,10 @@
 #define UDP_DATA_PORT 1213
 #define MAX_UDP_PARAMETER_LEN 64
 #define UDP_WAIT_TIME 100000
+#define SMALL 10
+#define MEDIUM 100
+#define LARGE 1000
+#define SIZE MEDIUM
 
 
 static char UDP_MULTICAST_ADDR[] = "ff03::1";
@@ -82,6 +86,7 @@ static void initThreadCustomCommands(void *aContext);
 void parsePayload(otMessage *aMessage, char *destination, char *command, char *argument);
 void sendCommandUDP(otInstance *aInstance, char* ipDestination,  char *euiDestination, char *command, char *argument);
 void sendDataUDP(otInstance *aInstance, char* ipDestination, char* aCommand, const char* aMessage, uint32_t addTime);
+void sendRandomUDP(otInstance *aInstance, char* ipDestination, char* aCommand, uint32_t addTime, bool random_flag);
 void getEuidEnd(otInstance *aContext, char aEuid[2]);
 void HandlePingStatistics(const otPingSenderStatistics *aStatistics, void *aContext);
 void sleep(otInstance *aInstance, uint32_t waitTime);
@@ -345,6 +350,38 @@ void sleep(otInstance *aInstance, uint32_t waitTime){
             otSysProcessDrivers(aInstance);
             otSysButtonProcess(aInstance);
     }
+}
+
+/**
+ * @brief Send a random UDP data datagram
+ */
+void sendRandomUDP(otInstance *aInstance, char* ipDestination, char* aCommand, uint32_t addTime, bool random_flag){
+/**    char str[MAX_UDP_PARAMETER_LEN];
+*/
+    char aEuid[2];
+    uint32_t aTime = otPlatTimeGet() + addTime; 
+    getEuidEnd(aInstance, aEuid);
+    
+    if (random_flag){
+	str_size = random(SIZE/2), SIZE);
+    }
+    else{
+	str_size = SIZE;
+    }
+    char aMessage[str_size];
+    char str[str_size];
+
+    for (int i=0; i < str_size; i++)
+    {
+	aMessage[i] = random(33,126);
+    }
+
+    
+    sprintf(str, "%s, %d, %s, %d, %s*", aEuid, udpCounter, aCommand, aTime, aMessage);
+    sendUdp(aInstance, ipDestination, str, UDP_DATA_PORT);
+    otCliOutputFormat("%s\n\r", str);
+    udpCounter++;
+
 }
 
 /***************************************************************************************************
