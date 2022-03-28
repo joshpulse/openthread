@@ -52,6 +52,8 @@
 #include <openthread/ip6.h>
 #include <openthread/platform/time.h>
 #include <openthread/ping_sender.h>
+#include <stdlib.h>
+#include <time.h>
 
 /***************************************************************************************************
  * @section Declarations
@@ -361,9 +363,13 @@ void sendRandomUDP(otInstance *aInstance, char* ipDestination, char* aCommand, u
     char aEuid[2];
     uint32_t aTime = otPlatTimeGet() + addTime; 
     getEuidEnd(aInstance, aEuid);
-    
+    int str_size;
+    int lower_str = 1, upper_str = SIZE;
+    int lower = 33, upper = 126;
+
     if (random_flag){
-	str_size = random(SIZE/2), SIZE);
+        srand(time(0));
+	str_size = (rand() % (upper - lower + 1)) + lower;
     }
     else{
 	str_size = SIZE;
@@ -373,7 +379,8 @@ void sendRandomUDP(otInstance *aInstance, char* ipDestination, char* aCommand, u
 
     for (int i=0; i < str_size; i++)
     {
-	aMessage[i] = random(33,126);
+        srand(time(0));
+	aMessage[i] = (rand() % (upper - lower + 1)) + lower;
     }
 
     
