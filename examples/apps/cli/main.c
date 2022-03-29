@@ -367,6 +367,7 @@ void sendRandomUDP(otInstance *aInstance, char* ipDestination, char* aCommand, u
     int lower_str = 1, upper_str = SIZE;
     int lower = 33, upper = 126;
 
+
     if (random_flag){
         srand(time(0));
 	str_size = (rand() % (upper - lower + 1)) + lower;
